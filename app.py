@@ -14,6 +14,7 @@ import sys
 import threading
 import tkinter as tk
 import traceback
+import unicodedata
 from tkinter import filedialog, messagebox, ttk
 
 if getattr(sys, 'frozen', False):
@@ -40,6 +41,12 @@ FORMS_DIR = os.path.join(DATA_DIR, 'forms')          # 자동 업데이트로 �
 BUNDLE_DIR = getattr(sys, '_MEIPASS', APP_DIR)       # 프로그램 안에 함께 넣은 파일
 AUTOSAVE = os.path.join(DATA_DIR, 'autosave.json')
 SETTINGS = os.path.join(DATA_DIR, 'settings.json')
+
+
+def nfc_name(path):
+    """파일 이름(맥은 한글 자모가 풀린 NFD로 올 수 있어 NFC로 맞춘다)"""
+    return unicodedata.normalize('NFC', os.path.basename(path))
+
 
 # ---- 색·글꼴 ----
 from tugo import theme as TH  # noqa: E402
@@ -1050,7 +1057,7 @@ class App(tk.Tk):
         dirs += [os.path.join(home, d) for d in ('Downloads', 'Desktop', 'Documents', '다운로드', '바탕 화면')]
         for d in dirs:
             for z in glob.glob(os.path.join(d, '*.zip')):
-                n = os.path.basename(z)
+                n = nfc_name(z)
                 if re.search(r'양식|hwpx|투고|자동', n, re.I):
                     cands.append(z)
                 if re.search(r'투고양식_묶음', n):
@@ -1058,11 +1065,11 @@ class App(tk.Tk):
         bundles = sorted(set(bundles), key=lambda p: (UP.version_tuple(bundle_version(p)), os.path.getmtime(p)),
                          reverse=True)
         # 저장된 경로보다 더 새 버전 묶음이 있으면(자동 업데이트·새 설치) 그것을 쓴다
-        if path and bundles and re.search(r'투고양식_묶음', os.path.basename(path)) and \
+        if path and bundles and re.search(r'투고양식_묶음', nfc_name(path)) and \
                 UP.is_newer(bundle_version(bundles[0]), bundle_version(path)):
             path = bundles[0]
         # 장르 정보가 든 통합 묶음이 있으면, 예전 BL 전용 zip보다 그것을 먼저 쓴다
-        if path and os.path.exists(path) and (re.search(r'투고양식_묶음', os.path.basename(path)) or not bundles):
+        if path and os.path.exists(path) and (re.search(r'투고양식_묶음', nfc_name(path)) or not bundles):
             self.load_forms_async(path)
             return
         if bundles:

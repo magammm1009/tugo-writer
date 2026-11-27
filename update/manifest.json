@@ -18,6 +18,11 @@
       "url": "https://github.com/magammm1009/tugo-writer/releases/download/v2.3/TugoWriter-Setup-2.3.exe",
       "sha256": "a6b268356a0b9e0a0ea8a7121d03118bfa6378a489458be53eba6e9a648af399",
       "size": 20894156
+    },
+    "mac": {
+      "url": "https://github.com/magammm1009/tugo-writer/releases/download/v2.3/TugoWriter-2.3.dmg",
+      "sha256": "fba5f1e8bb54297bee7909729329f7986816bd50e03659ec27a92f2345c1a160",
+      "size": 35653804
     }
   }
 }

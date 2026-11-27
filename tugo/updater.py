@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import re
+import ssl
 import sys
 import tempfile
 import urllib.parse
@@ -37,6 +38,18 @@ def _check_url(url):
     host = (p.hostname or '').lower()
     if p.scheme != 'https' or not any(host == h or host.endswith('.' + h) for h in ALLOWED):
         raise UpdateError('허용되지 않은 주소: %s' % url)
+
+
+def _ssl_context():
+    """맥용 앱은 시스템 인증서와 연결돼 있지 않아 https가 실패한다. 함께 넣은 certifi 인증서 묶음을 쓴다.
+    (윈도우는 시스템 인증서 저장소를 그대로 쓰므로 기본값)"""
+    if sys.platform != 'darwin':
+        return None
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return None
 
 
 def version_tuple(v):
@@ -71,7 +84,7 @@ def fetch_manifest(url, timeout=8):
     sep = '&' if '?' in url else '?'
     req = urllib.request.Request('%s%st=%d' % (url, sep, int(__import__('time').time() // 300)),
                                  headers={'User-Agent': UA, 'Cache-Control': 'no-cache'})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as r:
         data = json.loads(r.read().decode('utf-8-sig'))
     if not isinstance(data, dict):
         raise UpdateError('manifest 형식이 아니에요')
@@ -86,7 +99,7 @@ def download(url, dest, sha256=None, progress=None, timeout=30):
     h = hashlib.sha256()
     fd, tmp = tempfile.mkstemp(prefix='.dl_', dir=os.path.dirname(dest))
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r, os.fdopen(fd, 'wb') as f:
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as r, os.fdopen(fd, 'wb') as f:
             _check_url(r.geturl())          # 다른 곳으로 넘겨졌어도 GitHub 안이어야 함
             total = int(r.headers.get('Content-Length') or 0)
             done = 0
