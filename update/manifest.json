@@ -16,8 +16,8 @@
     "page": "https://github.com/magammm1009/tugo-writer/releases/latest",
     "windows": {
       "url": "https://github.com/magammm1009/tugo-writer/releases/download/v2.3/TugoWriter-Setup-2.3.exe",
-      "sha256": "a6b268356a0b9e0a0ea8a7121d03118bfa6378a489458be53eba6e9a648af399",
-      "size": 20894156
+      "sha256": "8004e0624a881cb6c1ab78035461d7055c65efcb5ebf29255961dc56a7706396",
+      "size": 21046064
     },
     "mac": {
       "url": "https://github.com/magammm1009/tugo-writer/releases/download/v2.3/TugoWriter-2.3.dmg",
