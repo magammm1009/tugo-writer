@@ -59,10 +59,21 @@ def apply_theme(accent):
 
 apply_theme(TH.DEFAULT)
 FONT_FAMILY = 'Apple SD Gothic Neo' if IS_MAC else '맑은 고딕'
+# 맥의 Tk는 1pt를 1픽셀(72dpi)로 그려서, 같은 숫자면 윈도우(96dpi)보다 글씨가 4분의 3 크기로 작게 보인다.
+# (tk scaling을 바꿔도 맥에서는 글꼴에 반영되지 않아 글꼴 크기를 직접 키운다)
+FONT_SCALE = 1.3 if IS_MAC else 1.0
+DLG_SCALE = 1.15 if IS_MAC else 1.0      # 도움말·미리보기 같은 보조 창 크기
 
 
 def F_(size=10, weight='normal'):
-    return (FONT_FAMILY, size, weight)
+    return (FONT_FAMILY, int(round(size * FONT_SCALE)), weight)
+
+
+def dlg_size(win, w, h):
+    """보조 창 크기(맥은 조금 크게, 화면보다 크지 않게)"""
+    w = min(int(w * DLG_SCALE), win.winfo_screenwidth() - 60)
+    h = min(int(h * DLG_SCALE), win.winfo_screenheight() - 120)
+    win.geometry('%dx%d' % (w, h))
 
 
 def read_json(path, default=None):
@@ -165,7 +176,10 @@ class ScrollArea(tk.Frame):
     def _on_wheel(cls, e):
         try:
             if e.widget.winfo_class() in ('Treeview', 'Listbox'):
-                return      # 목록은 자기 안에서 스크롤
+                # 목록은 자기 안에서 스크롤하고, 맨 위/맨 아래에 닿았을 때만 화면을 이어서 스크롤
+                first, last = e.widget.yview()
+                if not ((e.delta > 0 and first <= 0.0) or (e.delta < 0 and last >= 1.0)):
+                    return
         except Exception:
             pass
         sa = cls._owner(e.widget)
@@ -319,6 +333,10 @@ class App(tk.Tk):
         self.after(300, self.autodetect_forms)
         self.protocol('WM_DELETE_WINDOW', self.on_close)
         self.bind_all('<Control-s>', lambda e: self.save_project())
+        if IS_MAC:
+            self.bind_all('<Command-s>', lambda e: self.save_project())
+            # ⌘Q·메뉴의 종료는 창 닫기와 달리 그냥 꺼져서, 마지막 입력이 자동 저장되도록 같은 길로 보낸다
+            self.createcommand('tk::mac::Quit', self.on_close)
 
     # ------------------------------------------------------------------ 스타일
     def _style(self):
@@ -360,8 +378,8 @@ class App(tk.Tk):
         top = tk.Frame(self, bg=CARD, highlightthickness=1, highlightbackground=LINE)
         top.pack(side='top', fill='x')
         tk.Label(top, text=APP_NAME, bg=CARD, fg=INK, font=F_(14, 'bold')).pack(side='left', padx=(20, 8), pady=12)
-        self.subtitle_lbl = tk.Label(top, text='한 번 쓰고, 여러 출판사 양식을 한꺼번에', bg=CARD, fg=SUB, font=F_(10))
-        self.subtitle_lbl.pack(side='left')
+        self.subtitle_lbl = tk.Label(top, text='한 번 쓰고, 여러 출판사 양식을 한꺼번에', bg=CARD, fg=SUB, font=F_(10),
+                                     anchor='w')
         for txt, cmd in (('도움말', self.show_help), ('다른 이름으로 저장', self.save_project_as),
                          ('저장', self.save_project), ('불러오기', self.open_project), ('새 작품', self.new_project)):
             ttk.Button(top, text=txt, command=cmd, style='Small.TButton').pack(side='right', padx=(0, 8), pady=10)
@@ -374,6 +392,8 @@ class App(tk.Tk):
         self.update_banner = tk.Label(top, text='', bg=ACCENT, fg='white', font=F_(9, 'bold'), cursor='hand2',
                                       padx=10, pady=5)
         self.update_banner.bind('<Button-1>', lambda e: self.install_update())
+        # 부제는 맨 나중에: 창이 좁으면 버튼·테마가 아니라 부제부터 줄어든다
+        self.subtitle_lbl.pack(side='left')
         if getattr(self, '_app_update', None):
             self.after(50, self.show_update_banner)
 
@@ -564,8 +584,9 @@ class App(tk.Tk):
         self.char_list.bind('<<ListboxSelect>>', lambda e: self.char_select())
         btns = tk.Frame(left, bg=CARD)
         btns.pack(fill='x', padx=8, pady=10)
-        ttk.Button(btns, text='+ 추가', command=self.char_add, style='Small.TButton').pack(side='left')
-        ttk.Button(btns, text='삭제', command=self.char_del, style='Small.TButton').pack(side='left', padx=4)
+        # 버튼 폭을 글자 길이에 맞춘다(기본 폭이면 버튼 줄 때문에 인물 목록이 넓어져 오른쪽 칸이 잘림)
+        ttk.Button(btns, text='+ 추가', width=6, command=self.char_add, style='Small.TButton').pack(side='left')
+        ttk.Button(btns, text='삭제', width=5, command=self.char_del, style='Small.TButton').pack(side='left', padx=4)
         ttk.Button(btns, text='▲', width=3, command=lambda: self.char_move(-1), style='Small.TButton').pack(side='left')
         ttk.Button(btns, text='▼', width=3, command=lambda: self.char_move(1), style='Small.TButton').pack(side='left',
                                                                                                          padx=2)
@@ -580,18 +601,39 @@ class App(tk.Tk):
         grid = tk.Frame(self.char_form, bg=CARD)
         grid.pack(fill='x', padx=20, pady=(16, 0))
         short = [f for f in F.CHAR_FIELDS if f[2] in ('line', 'choice') and f[0] != 'goal']
+        grid.columnconfigure(0, weight=1)    # 이름 칸이 남는 폭을 쓴다
+        cells = []
         for i, (k, lab, kind, opt) in enumerate(short):
             c = tk.Frame(grid, bg=CARD)
-            c.grid(row=0, column=i, sticky='w', padx=(0, 12))
+            cells.append(c)
             tk.Label(c, text=lab, bg=CARD, fg=INK, font=F_(9, 'bold')).pack(anchor='w')
             var = tk.StringVar()
             if kind == 'choice':
                 w = ttk.Combobox(c, textvariable=var, values=opt, state='readonly', width=6 if k != 'kind' else 7)
             else:
-                w = ttk.Entry(c, textvariable=var, width=16 if k == 'name' else 7)
-            w.pack(anchor='w')
+                w = ttk.Entry(c, textvariable=var, width=10 if k == 'name' else 7)
+            if i == 0:
+                w.pack(fill='x')
+            else:
+                w.pack(anchor='w')
             var.trace_add('write', lambda *a, kk=k, v=var: self.char_changed(kk, v.get()))
             self.char_vars[k] = (var.get, var.set)
+
+        # 한 줄에 다 들어가면 한 줄로, 창이 좁으면 뒤쪽 칸(나이·성별)을 둘째 줄로 내린다(칸이 잘리지 않게)
+        state = {'rows': 0}
+
+        def place(_e=None):
+            need = sum(c.winfo_reqwidth() for c in cells) + 12 * (len(cells) - 1)
+            rows = 1 if grid.winfo_width() >= need or len(cells) < 4 else 2
+            if rows == state['rows']:
+                return
+            state['rows'] = rows
+            for i, c in enumerate(cells):
+                r, col = (0, i) if rows == 1 or i < 3 else (1, i - 3)
+                c.grid(row=r, column=col, sticky='ew' if col == 0 and r == 0 else 'w',
+                       padx=(0, 12), pady=(0, 0) if r == 0 else (8, 0))
+        place()
+        grid.bind('<Configure>', place)
         for k, lab, kind, opt in F.CHAR_FIELDS:
             if (k, lab, kind, opt) in short:
                 continue
@@ -1329,11 +1371,11 @@ class App(tk.Tk):
             return
         win = tk.Toplevel(self)
         win.title('미리보기 — %s' % e.display)
-        win.geometry('760x640')
+        dlg_size(win, 760, 640)
         win.configure(bg=BG)
         tk.Label(win, text=e.display, bg=BG, fg=INK, font=F_(14, 'bold')).pack(anchor='w', padx=20, pady=(16, 0))
         tk.Label(win, text=e.filename, bg=BG, fg=SUB, font=F_(9)).pack(anchor='w', padx=20)
-        t = tk.Text(win, wrap='word', font=F_(10), relief='flat', bg=CARD, padx=16, pady=12,
+        t = tk.Text(win, wrap='word', font=F_(10), relief='flat', bg=CARD, padx=16, pady=12, height=1,
                     highlightthickness=1, highlightbackground=LINE)
         t.pack(fill='both', expand=True, padx=20, pady=12)
         t.tag_configure('h', font=F_(11, 'bold'), spacing1=10, spacing3=4)
@@ -1633,9 +1675,9 @@ class App(tk.Tk):
     def show_help(self):
         win = tk.Toplevel(self)
         win.title('도움말')
-        win.geometry('640x560')
+        dlg_size(win, 640, 560)
         win.configure(bg=BG)
-        t = tk.Text(win, wrap='word', font=F_(10), relief='flat', bg=CARD, padx=18, pady=14, spacing1=3,
+        t = tk.Text(win, wrap='word', font=F_(10), relief='flat', bg=CARD, padx=18, pady=14, spacing1=3, height=1,
                     highlightthickness=1, highlightbackground=LINE)
         t.pack(fill='both', expand=True, padx=18, pady=18)
         t.tag_configure('h', font=F_(12, 'bold'), spacing1=12, spacing3=4)
