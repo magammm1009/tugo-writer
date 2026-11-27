@@ -1,0 +1,12 @@
+# 빌드 결과물(설치 파일·exe는 GitHub Releases에 올림)
+dist/
+build/
+*.spec
+*.exe
+*.dmg
+__pycache__/
+*.pyc
+.DS_Store
+# 개인 작업 파일
+*.raw.json
+.venv-mac/
