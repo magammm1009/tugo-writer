@@ -353,7 +353,8 @@ class App(tk.Tk):
         top = tk.Frame(self, bg=CARD, highlightthickness=1, highlightbackground=LINE)
         top.pack(side='top', fill='x')
         tk.Label(top, text=APP_NAME, bg=CARD, fg=INK, font=F_(14, 'bold')).pack(side='left', padx=(20, 8), pady=12)
-        tk.Label(top, text='한 번 쓰고, 여러 출판사 양식을 한꺼번에', bg=CARD, fg=SUB, font=F_(10)).pack(side='left')
+        self.subtitle_lbl = tk.Label(top, text='한 번 쓰고, 여러 출판사 양식을 한꺼번에', bg=CARD, fg=SUB, font=F_(10))
+        self.subtitle_lbl.pack(side='left')
         for txt, cmd in (('도움말', self.show_help), ('다른 이름으로 저장', self.save_project_as),
                          ('저장', self.save_project), ('불러오기', self.open_project), ('새 작품', self.new_project)):
             ttk.Button(top, text=txt, command=cmd, style='Small.TButton').pack(side='right', padx=(0, 8), pady=10)
@@ -1570,7 +1571,9 @@ class App(tk.Tk):
             return
         self.update_banner.configure(text='⬆ 새 버전 v%s 받기' % info['version'], bg=ACCENT)
         if not self.update_banner.winfo_ismapped():
-            self.update_banner.pack(side='right', padx=(0, 10), pady=10, before=self.theme_btn)
+            # 창이 좁아도 버튼이 밀려나지 않게 부제 자리에 알림을 띄운다
+            self.subtitle_lbl.pack_forget()
+            self.update_banner.pack(side='left', padx=(4, 0), pady=10)
 
     def install_update(self):
         info = getattr(self, '_app_update', None)
